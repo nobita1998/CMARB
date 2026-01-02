@@ -391,7 +391,7 @@
     </div>
 
     <script>
-        const FEE_K = 0.02;
+        const FEE_K = 0.08;
         const MIN_FEE = 0.5;
 
         const PLATFORMS = [
@@ -438,9 +438,9 @@
         }
 
         function calculateOpinionFee(avgPrice, totalShares) {
-            const p = avgPrice / 100;
+            const p = avgPrice / 100;  // 价格转为小数 (52¢ -> 0.52)
             const effectiveFeeRate = FEE_K * p * (1 - p);
-            const notional = totalShares;
+            const notional = p * totalShares;  // 名义价值 = 价格 * 数量
             const calculatedFee = notional * effectiveFeeRate;
             const actualFee = Math.max(calculatedFee, MIN_FEE);
             return {

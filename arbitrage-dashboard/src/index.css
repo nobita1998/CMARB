@@ -1,0 +1,106 @@
+@import "tailwindcss";
+
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+:root {
+  font-family: 'JetBrains Mono', 'SF Mono', 'Consolas', monospace;
+  line-height: 1.5;
+  font-weight: 400;
+  color-scheme: light;
+  color: #1e293b;
+  background: #f8fafc;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #e2e8f0;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+/* Signal animations */
+@keyframes pulse-hot {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(234, 88, 12, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(234, 88, 12, 0);
+  }
+}
+
+.signal-hot {
+  animation: pulse-hot 2s ease-in-out infinite;
+}
+
+/* Type badge colors */
+.badge-lol {
+  background: rgba(239, 68, 68, 0.1);
+  color: #dc2626;
+  border: 1px solid #fca5a5;
+}
+
+.badge-ai {
+  background: rgba(168, 85, 247, 0.1);
+  color: #7c3aed;
+  border: 1px solid #c4b5fd;
+}
+
+.badge-politics {
+  background: rgba(59, 130, 246, 0.1);
+  color: #2563eb;
+  border: 1px solid #93c5fd;
+}
+
+.badge-crypto {
+  background: rgba(245, 158, 11, 0.1);
+  color: #d97706;
+  border: 1px solid #fcd34d;
+}
+
+.badge-other {
+  background: rgba(107, 114, 128, 0.1);
+  color: #4b5563;
+  border: 1px solid #d1d5db;
+}
+
+/* Row highlights */
+.row-hot {
+  background: rgba(234, 88, 12, 0.08);
+}
+
+.row-go {
+  background: rgba(22, 163, 74, 0.06);
+}
+
+/* Card style */
+.card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
