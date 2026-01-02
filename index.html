@@ -406,12 +406,12 @@
             {
                 platform: 'polymarket',
                 type: 'YES',
-                orders: [{ price: 55, quantity: 100 }]
+                orders: [{ price: '', quantity: '' }]
             },
             {
                 platform: 'opinion',
                 type: 'NO',
-                orders: [{ price: 40, quantity: 100 }]
+                orders: [{ price: '', quantity: '' }]
             }
         ];
 
@@ -535,7 +535,7 @@
             positions.push({
                 platform: 'polymarket',
                 type: 'YES',
-                orders: [{ price: 50, quantity: 100 }]
+                orders: [{ price: '', quantity: '' }]
             });
             renderPositions();
         }
@@ -553,7 +553,7 @@
         }
 
         function addOrder(posIndex) {
-            positions[posIndex].orders.push({ price: 50, quantity: 100 });
+            positions[posIndex].orders.push({ price: '', quantity: '' });
             renderPositions();
         }
 
