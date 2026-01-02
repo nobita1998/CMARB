@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>跨平台套利计算器</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            color: #fff;
+            padding: 16px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 16px;
+            font-size: 24px;
+            color: #00d9ff;
+        }
+
+        .main-layout {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            align-items: start;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 16px;
+            backdrop-filter: blur(10px);
+        }
+
+        .card h2 {
+            font-size: 16px;
+            margin-bottom: 12px;
+            color: #00d9ff;
+        }
+
+        .input-group {
+            margin-bottom: 12px;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 4px;
+            color: #aaa;
+            font-size: 12px;
+        }
+
+        .input-group input, .input-group select {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 6px;
+            background: rgba(0, 0, 0, 0.3);
+            color: #fff;
+            font-size: 14px;
+        }
+
+        .input-group input:focus, .input-group select:focus {
+            outline: none;
+            border-color: #00d9ff;
+        }
+
+        .input-group select option {
+            background: #1a1a2e;
+            color: #fff;
+        }
+
+        .shares-row {
+            background: rgba(0, 217, 255, 0.1);
+            border: 1px solid rgba(0, 217, 255, 0.3);
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+        }
+
+        .shares-row .input-group {
+            margin-bottom: 0;
+        }
+
+        .shares-row input {
+            font-size: 18px;
+            text-align: center;
+        }
+
+        .position-row {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            padding: 10px;
+            margin-bottom: 8px;
+        }
+
+        .position-row-header {
+            display: grid;
+            grid-template-columns: 1.5fr 1fr 0.8fr 50px 36px;
+            gap: 8px;
+            align-items: end;
+        }
+
+        .position-row-header .input-group {
+            margin-bottom: 0;
+        }
+
+        .fee-info {
+            font-size: 11px;
+            color: #ffc107;
+            margin-top: 6px;
+            padding: 6px 8px;
+            background: rgba(255, 193, 7, 0.1);
+            border-radius: 4px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .position-type {
+            padding: 8px;
+            border-radius: 6px;
+            font-weight: bold;
+            text-align: center;
+            font-size: 12px;
+        }
+
+        .position-yes {
+            background: rgba(0, 200, 83, 0.2);
+            color: #00c853;
+        }
+
+        .position-no {
+            background: rgba(255, 82, 82, 0.2);
+            color: #ff5252;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        .btn-add {
+            background: #00d9ff;
+            color: #1a1a2e;
+            width: 100%;
+            margin-top: 8px;
+        }
+
+        .btn-add:hover {
+            background: #00b8d9;
+        }
+
+        .btn-remove {
+            background: rgba(255, 82, 82, 0.3);
+            color: #ff5252;
+            padding: 8px 10px;
+            font-size: 14px;
+        }
+
+        .btn-remove:hover {
+            background: rgba(255, 82, 82, 0.5);
+        }
+
+        .btn-remove:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+
+        .result-card {
+            background: rgba(0, 217, 255, 0.1);
+            border: 1px solid rgba(0, 217, 255, 0.3);
+        }
+
+        .result-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .result-item:last-child {
+            border-bottom: none;
+        }
+
+        .result-label {
+            color: #aaa;
+            font-size: 13px;
+        }
+
+        .result-value {
+            font-weight: bold;
+            font-size: 15px;
+        }
+
+        .profit-positive { color: #00c853; }
+        .profit-negative { color: #ff5252; }
+        .profit-neutral { color: #ffd600; }
+
+        .status-badge {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 16px;
+            font-weight: bold;
+            margin-bottom: 12px;
+            font-size: 13px;
+        }
+
+        .status-arbitrage {
+            background: rgba(0, 200, 83, 0.2);
+            color: #00c853;
+        }
+
+        .status-no-arbitrage {
+            background: rgba(255, 82, 82, 0.2);
+            color: #ff5252;
+        }
+
+        .breakdown {
+            margin-top: 12px;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 6px;
+        }
+
+        .breakdown h3 {
+            font-size: 12px;
+            color: #aaa;
+            margin-bottom: 8px;
+        }
+
+        .breakdown-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 0;
+            font-size: 12px;
+        }
+
+        .scenario-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .scenario-box {
+            padding: 8px;
+            border-radius: 6px;
+            text-align: center;
+            font-size: 12px;
+        }
+
+        .scenario-box.yes-wins {
+            background: rgba(0, 200, 83, 0.1);
+            border: 1px solid rgba(0, 200, 83, 0.3);
+        }
+
+        .scenario-box.no-wins {
+            background: rgba(255, 82, 82, 0.1);
+            border: 1px solid rgba(255, 82, 82, 0.3);
+        }
+
+        .scenario-box .label {
+            color: #aaa;
+            margin-bottom: 4px;
+        }
+
+        .scenario-box .value {
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        @media (max-width: 900px) {
+            .main-layout {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        @media (max-width: 600px) {
+            .position-row-header {
+                grid-template-columns: 1fr 1fr 1fr;
+            }
+            .position-row-header .input-group:first-child {
+                grid-column: span 3;
+            }
+            .position-row-header .btn-remove {
+                grid-column: span 3;
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>跨平台套利计算器</h1>
+
+        <div class="main-layout">
+            <div class="card">
+                <h2>平台持仓</h2>
+                <div class="shares-row">
+                    <div class="input-group">
+                        <label>Share 数量（所有平台相同）</label>
+                        <input type="number" id="shares" value="100" min="0.01" step="any" oninput="onSharesChange()">
+                    </div>
+                </div>
+                <div id="positions"></div>
+                <button class="btn btn-add" onclick="addPosition()">+ 添加平台</button>
+            </div>
+
+            <div class="card result-card" id="resultCard">
+                <div id="statusBadge" class="status-badge">等待输入...</div>
+                <h2>计算结果</h2>
+                <div id="results"></div>
+                <div class="breakdown" id="breakdown"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const FEE_K = 0.02;
+        const MIN_FEE = 0.5;
+
+        const PLATFORMS = [
+            { value: 'polymarket', label: 'Polymarket', hasFee: false },
+            { value: 'opinion', label: 'Opinion', hasFee: true },
+            { value: 'kalshi', label: 'Kalshi', hasFee: false },
+            { value: 'predictit', label: 'PredictIt', hasFee: false },
+            { value: 'other', label: '其他', hasFee: false }
+        ];
+
+        let positions = [
+            { platform: 'polymarket', price: 55, type: 'YES' },
+            { platform: 'opinion', price: 40, type: 'NO' }
+        ];
+
+        function getPlatformInfo(platformValue) {
+            return PLATFORMS.find(p => p.value === platformValue) || PLATFORMS[0];
+        }
+
+        function calculateOpinionFee(price, shares) {
+            // effective fee rate = topic_rate × price × (1 − price)
+            // fee = max(notional × effective fee rate, min fee $0.5)
+            // notional = shares (名义价值)
+            const p = price / 100;
+            const effectiveFeeRate = FEE_K * p * (1 - p);
+            const notional = shares;
+            const calculatedFee = notional * effectiveFeeRate;
+            const actualFee = Math.max(calculatedFee, MIN_FEE);
+            return {
+                feeRate: effectiveFeeRate,
+                calculatedFee: calculatedFee,
+                actualFee: actualFee,
+                isMinFee: calculatedFee < MIN_FEE
+            };
+        }
+
+        function renderPositions() {
+            const container = document.getElementById('positions');
+            const shares = parseFloat(document.getElementById('shares').value) || 100;
+
+            container.innerHTML = positions.map((pos, index) => {
+                const platformInfo = getPlatformInfo(pos.platform);
+                const feeInfo = platformInfo.hasFee ? calculateOpinionFee(pos.price, shares) : null;
+
+                return `
+                <div class="position-row">
+                    <div class="position-row-header">
+                        <div class="input-group">
+                            <label>平台</label>
+                            <select onchange="updatePosition(${index}, 'platform', this.value)">
+                                ${PLATFORMS.map(p => `
+                                    <option value="${p.value}" ${pos.platform === p.value ? 'selected' : ''}>
+                                        ${p.label}${p.hasFee ? ' *' : ''}
+                                    </option>
+                                `).join('')}
+                            </select>
+                        </div>
+                        <div class="input-group">
+                            <label>价格 (¢)</label>
+                            <input type="number" value="${pos.price}" min="0" max="100" step="any"
+                                   oninput="updatePosition(${index}, 'price', parseFloat(this.value) || 0)">
+                        </div>
+                        <div class="input-group">
+                            <label>类型</label>
+                            <select onchange="updatePosition(${index}, 'type', this.value)">
+                                <option value="YES" ${pos.type === 'YES' ? 'selected' : ''}>YES</option>
+                                <option value="NO" ${pos.type === 'NO' ? 'selected' : ''}>NO</option>
+                            </select>
+                        </div>
+                        <div class="input-group">
+                            <label>&nbsp;</label>
+                            <div class="position-type ${pos.type === 'YES' ? 'position-yes' : 'position-no'}">
+                                ${pos.type}
+                            </div>
+                        </div>
+                        <div class="input-group">
+                            <label>&nbsp;</label>
+                            <button class="btn btn-remove" onclick="removePosition(${index})"
+                                    ${positions.length <= 2 ? 'disabled' : ''}>X</button>
+                        </div>
+                    </div>
+                    ${platformInfo.hasFee ? `
+                    <div class="fee-info">
+                        <span>手续费: $${feeInfo.actualFee.toFixed(2)} ${feeInfo.isMinFee ? '(最低$0.5)' : ''}</span>
+                        <span>费率: 0.02×${(pos.price/100).toFixed(2)}×${(1-pos.price/100).toFixed(2)} = ${(feeInfo.feeRate * 100).toFixed(3)}%</span>
+                    </div>
+                    ` : ''}
+                </div>
+            `}).join('');
+            calculate();
+        }
+
+        function addPosition() {
+            positions.push({ platform: 'polymarket', price: 50, type: 'YES' });
+            renderPositions();
+        }
+
+        function removePosition(index) {
+            if (positions.length > 2) {
+                positions.splice(index, 1);
+                renderPositions();
+            }
+        }
+
+        function onSharesChange() {
+            const shares = parseFloat(document.getElementById('shares').value) || 100;
+            // 更新所有 Opinion 平台的手续费显示
+            positions.forEach((pos, index) => {
+                const platformInfo = getPlatformInfo(pos.platform);
+                if (platformInfo.hasFee) {
+                    const feeInfo = calculateOpinionFee(pos.price, shares);
+                    const feeInfoEl = document.querySelectorAll('.position-row')[index]?.querySelector('.fee-info');
+                    if (feeInfoEl) {
+                        feeInfoEl.innerHTML = `
+                            <span>手续费: $${feeInfo.actualFee.toFixed(2)} ${feeInfo.isMinFee ? '(最低$0.5)' : ''}</span>
+                            <span>费率: 0.02×${(pos.price/100).toFixed(2)}×${(1-pos.price/100).toFixed(2)} = ${(feeInfo.feeRate * 100).toFixed(3)}%</span>
+                        `;
+                    }
+                }
+            });
+            calculate();
+        }
+
+        function updatePosition(index, field, value) {
+            positions[index][field] = value;
+
+            // 只有平台或类型变化才需要重新渲染，价格变化只更新计算
+            if (field === 'price') {
+                // 更新手续费显示（如果有）
+                const platformInfo = getPlatformInfo(positions[index].platform);
+                if (platformInfo.hasFee) {
+                    const shares = parseFloat(document.getElementById('shares').value) || 100;
+                    const feeInfo = calculateOpinionFee(value, shares);
+                    const feeInfoEl = document.querySelectorAll('.position-row')[index]?.querySelector('.fee-info');
+                    if (feeInfoEl) {
+                        feeInfoEl.innerHTML = `
+                            <span>手续费: $${feeInfo.actualFee.toFixed(2)} ${feeInfo.isMinFee ? '(最低$0.5)' : ''}</span>
+                            <span>费率: 0.02×${(value/100).toFixed(2)}×${(1-value/100).toFixed(2)} = ${(feeInfo.feeRate * 100).toFixed(3)}%</span>
+                        `;
+                    }
+                }
+                calculate();
+            } else {
+                renderPositions();
+            }
+        }
+
+        function calculate() {
+            const shares = parseFloat(document.getElementById('shares').value) || 0;
+            const statusBadge = document.getElementById('statusBadge');
+            const resultsDiv = document.getElementById('results');
+            const breakdownDiv = document.getElementById('breakdown');
+
+            if (shares <= 0 || positions.length < 2) {
+                statusBadge.className = 'status-badge';
+                statusBadge.textContent = '等待输入...';
+                resultsDiv.innerHTML = '';
+                breakdownDiv.innerHTML = '';
+                return;
+            }
+
+            let totalCost = 0;
+            let totalFees = 0;
+            let yesCount = 0;
+            let noCount = 0;
+
+            positions.forEach(pos => {
+                const platformInfo = getPlatformInfo(pos.platform);
+                const baseCost = (pos.price / 100) * shares;
+                let fee = 0;
+
+                if (platformInfo.hasFee) {
+                    const feeInfo = calculateOpinionFee(pos.price, shares);
+                    fee = feeInfo.actualFee;
+                }
+
+                totalCost += baseCost + fee;
+                totalFees += fee;
+
+                if (pos.type === 'YES') yesCount++;
+                else noCount++;
+            });
+
+            const hasYes = yesCount > 0;
+            const hasNo = noCount > 0;
+
+            const payoutIfYes = yesCount * shares;
+            const profitIfYes = payoutIfYes - totalCost;
+
+            const payoutIfNo = noCount * shares;
+            const profitIfNo = payoutIfNo - totalCost;
+
+            const guaranteedProfit = Math.min(profitIfYes, profitIfNo);
+            const hasArbitrage = hasYes && hasNo && guaranteedProfit > 0;
+
+            if (hasArbitrage) {
+                statusBadge.className = 'status-badge status-arbitrage';
+                statusBadge.textContent = '存在套利机会!';
+            } else if (hasYes && hasNo) {
+                statusBadge.className = 'status-badge status-no-arbitrage';
+                statusBadge.textContent = '无套利机会';
+            } else {
+                statusBadge.className = 'status-badge status-no-arbitrage';
+                statusBadge.textContent = '需要同时持有 YES 和 NO';
+            }
+
+            const profitClass = guaranteedProfit > 0 ? 'profit-positive' :
+                               (guaranteedProfit < 0 ? 'profit-negative' : 'profit-neutral');
+
+            resultsDiv.innerHTML = `
+                <div class="scenario-row">
+                    <div class="scenario-box yes-wins">
+                        <div class="label">YES 赢</div>
+                        <div class="value ${profitIfYes >= 0 ? 'profit-positive' : 'profit-negative'}">
+                            ${profitIfYes >= 0 ? '+' : ''}$${profitIfYes.toFixed(2)}
+                        </div>
+                    </div>
+                    <div class="scenario-box no-wins">
+                        <div class="label">NO 赢</div>
+                        <div class="value ${profitIfNo >= 0 ? 'profit-positive' : 'profit-negative'}">
+                            ${profitIfNo >= 0 ? '+' : ''}$${profitIfNo.toFixed(2)}
+                        </div>
+                    </div>
+                </div>
+                <div class="result-item">
+                    <span class="result-label">总投入成本</span>
+                    <span class="result-value">$${totalCost.toFixed(2)}</span>
+                </div>
+                ${totalFees > 0 ? `
+                <div class="result-item">
+                    <span class="result-label">其中手续费</span>
+                    <span class="result-value" style="color: #ffc107;">$${totalFees.toFixed(2)}</span>
+                </div>
+                ` : ''}
+                <div class="result-item">
+                    <span class="result-label">保证利润</span>
+                    <span class="result-value ${profitClass}">
+                        ${guaranteedProfit >= 0 ? '+' : ''}$${guaranteedProfit.toFixed(2)}
+                    </span>
+                </div>
+                <div class="result-item">
+                    <span class="result-label">收益率</span>
+                    <span class="result-value ${profitClass}">
+                        ${totalCost > 0 ? ((guaranteedProfit / totalCost) * 100).toFixed(2) : 0}%
+                    </span>
+                </div>
+            `;
+
+            let breakdownHtml = '<h3>持仓明细</h3>';
+            positions.forEach(pos => {
+                const platformInfo = getPlatformInfo(pos.platform);
+                const baseCost = (pos.price / 100) * shares;
+                let totalPosCost = baseCost;
+                let feeStr = '';
+
+                if (platformInfo.hasFee) {
+                    const feeInfo = calculateOpinionFee(pos.price, shares);
+                    totalPosCost += feeInfo.actualFee;
+                    feeStr = ` +$${feeInfo.actualFee.toFixed(2)}`;
+                }
+
+                breakdownHtml += `
+                    <div class="breakdown-item">
+                        <span>${platformInfo.label} ${pos.type}</span>
+                        <span>$${baseCost.toFixed(2)}${feeStr} = $${totalPosCost.toFixed(2)}</span>
+                    </div>
+                `;
+            });
+
+            breakdownDiv.innerHTML = breakdownHtml;
+        }
+
+        renderPositions();
+    </script>
+</body>
+</html>
