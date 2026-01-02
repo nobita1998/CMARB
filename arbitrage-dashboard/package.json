@@ -4,8 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "VITE_OPINION_API_KEY=$(security find-generic-password -a \"$USER\" -s \"OPINION_API_KEY\" -w) vite",
-    "build": "VITE_OPINION_API_KEY=$(security find-generic-password -a \"$USER\" -s \"OPINION_API_KEY\" -w) vite build",
+    "dev": "VITE_OPINION_API_KEY=$(security find-generic-password -s \"OPINION_API_KEY\" -w 2>/dev/null) vite",
+    "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview"
   },
