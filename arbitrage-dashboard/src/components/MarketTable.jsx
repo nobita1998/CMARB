@@ -2,6 +2,33 @@ import { formatPct } from '../utils/format';
 import { calcOpinionTradeFee, MIN_FEE_USD } from '../utils/fees';
 
 /**
+ * Calculate days until settlement date
+ * @param {string} settlementDate - YYYY-MM-DD format
+ * @returns {number|null} Days to settlement, or null if invalid/past
+ */
+function getDaysToSettlement(settlementDate) {
+  if (!settlementDate) return null;
+  const settlement = new Date(settlementDate);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  settlement.setHours(0, 0, 0, 0);
+  const diffTime = settlement.getTime() - today.getTime();
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  return diffDays > 0 ? diffDays : null;
+}
+
+/**
+ * Calculate annualized return
+ * @param {number} profitPct - Profit percentage (e.g., 0.05 = 5%)
+ * @param {number} daysToSettlement - Days until settlement
+ * @returns {number|null} Annualized return percentage
+ */
+function calcAnnualizedReturn(profitPct, daysToSettlement) {
+  if (!daysToSettlement || daysToSettlement <= 0) return null;
+  return profitPct * (365 / daysToSettlement);
+}
+
+/**
  * Format price as cents
  */
 function formatPrice(p) {
@@ -41,11 +68,10 @@ function calcOpinionFee(price, shares) {
 }
 
 /**
- * Polymarket fee (~1% on profit, simplified as 0.5% of position)
- * Returns fee in USD for given price and shares
+ * Polymarket has no trading fees
  */
 function calcPolyFee(price, shares) {
-  return price * shares * 0.005;
+  return 0;
 }
 
 /**
@@ -126,6 +152,10 @@ function OrderbookCard({ opp }) {
   const bestTotalCost = isBuyOpinionYes ? totalCost1 : totalCost2;
   const bestAvailShares = isBuyOpinionYes ? availShares1 : availShares2;
 
+  // Calculate annualized return if settlement date is available
+  const daysToSettlement = getDaysToSettlement(opp.settlementDate);
+  const annualizedReturn = calcAnnualizedReturn(bestProfitPct, daysToSettlement);
+
   // Determine signal based on profit percentage
   let signal = null;
   if (bestProfitPct > 0.05) {
@@ -144,9 +174,14 @@ function OrderbookCard({ opp }) {
     <div className={`rounded-lg overflow-hidden border-2 ${cardBorder} bg-white shadow-sm`}>
       {/* Header */}
       <div className="px-4 py-2 bg-slate-800 flex items-center justify-between">
-        <div>
+        <div className="flex items-center gap-2">
           <span className="font-bold text-white">{opp.outcome}</span>
-          <span className="text-slate-400 text-xs ml-2">{opp.eventName}</span>
+          <span className="text-slate-400 text-xs">{opp.eventName}</span>
+          {daysToSettlement !== null && (
+            <span className="text-slate-500 text-xs bg-slate-700 px-1.5 py-0.5 rounded">
+              {opp.settlementDate} ({daysToSettlement}d)
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-3">
           {signal && (
@@ -160,6 +195,11 @@ function OrderbookCard({ opp }) {
           <span className={`text-sm font-mono font-bold ${bestProfitPct > 0 ? 'text-green-400' : 'text-red-400'}`}>
             {formatPct(bestProfitPct)}
           </span>
+          {annualizedReturn !== null && bestProfitPct > 0 && (
+            <span className="text-sm font-mono font-bold text-purple-400" title={`${daysToSettlement} days to settlement`}>
+              APY: {formatPct(annualizedReturn)}
+            </span>
+          )}
         </div>
       </div>
 

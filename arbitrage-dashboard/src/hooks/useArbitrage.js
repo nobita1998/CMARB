@@ -52,7 +52,7 @@ export function useArbitrage(prices) {
           const fee = calcOpinionTradeFee(price, shares);
           return fee.actualFee;
         };
-        const calcPolyFee = (price, shares) => price * shares * 0.005;
+        const calcPolyFee = () => 0;  // Polymarket has no trading fees
 
         // Strategy 1: Buy Opinion YES + Buy Poly NO
         const cost1 = opinionYesAsk + polyNoAsk;
@@ -118,6 +118,7 @@ export function useArbitrage(prices) {
           eventId: market.id,
           eventName: market.name,
           eventType: market.type,
+          settlementDate: market.settlementDate || null,
           outcome,
           opinion: opinionYes,
           opinionNo: opinionNo,
@@ -162,12 +163,14 @@ function calculateStats(opportunities, settings) {
   }
 
   const spreads = opportunities.map(o => Math.abs(o.spreadPct));
+  const profitableCount = opportunities.filter(o => o.netProfit > 0).length;
   const goCount = opportunities.filter(o => o.netProfit > settings.minSpreadAlert).length;
   const hotCount = opportunities.filter(o => o.netProfit > settings.hotSpreadThreshold).length;
 
   return {
     totalMarkets: config.markets.length,
-    opportunities: goCount,
+    opportunities: profitableCount,
+    goCount,
     hotCount,
     avgSpread: spreads.reduce((a, b) => a + b, 0) / spreads.length,
     maxSpread: Math.max(...spreads)

@@ -17,6 +17,7 @@ export const config = {
       id: 'okbet-arena',
       name: 'OKBet Arena AI Trading Competition Winner',
       type: 'AI',
+      settlementDate: '2026-01-31',  // Market settlement date (YYYY-MM-DD)
       outcomes: ['Claude', 'Grok', 'GPT', 'Gemini', 'DeepSeek'],
       opinion: {
         type: 'multi',
@@ -53,6 +54,7 @@ export const config = {
       id: 'australian-open-2026',
       name: '2026 Men\'s Australian Open Winner',
       type: 'Sports',
+      settlementDate: '2026-01-31',  // Market settlement date (YYYY-MM-DD)
       outcomes: ['Jannik Sinner', 'Carlos Alcaraz', 'Novak Djokovic', 'Alexander Zverev', 'Daniil Medvedev', 'Taylor Fritz'],
       opinion: {
         type: 'multi',

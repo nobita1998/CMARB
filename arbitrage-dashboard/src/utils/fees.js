@@ -38,6 +38,7 @@ export function effectiveFee(p) {
 
 /**
  * Calculate actual Opinion fee for a trade (with $0.5 minimum)
+ * Note: Uses nominal fee only, does NOT include points rebate
  * @param {number} price - Price between 0 and 1
  * @param {number} shares - Number of shares
  * @returns {object} { calculatedFee, actualFee, isMinFee, feeRate }
@@ -47,7 +48,7 @@ export function calcOpinionTradeFee(price, shares) {
     return { calculatedFee: 0, actualFee: 0, isMinFee: false, feeRate: 0 };
   }
 
-  const feeRate = effectiveFee(price);
+  const feeRate = nominalFee(price);  // Use nominal fee, no points rebate
   const notional = price * shares;  // 名义价值 = 价格 * 数量
   const calculatedFee = notional * feeRate;
   const actualFee = Math.max(calculatedFee, MIN_FEE_USD);
@@ -62,9 +63,10 @@ export function calcOpinionTradeFee(price, shares) {
 
 /**
  * Calculate net profit from arbitrage
+ * Note: Uses nominal fee only, does NOT include points rebate
  * @param {number} opinionPrice - Opinion price (0-1)
  * @param {number} polyPrice - Polymarket price (0-1)
- * @returns {object} { spread, spreadPct, effectiveFeeRate, netProfit }
+ * @returns {object} { spread, spreadPct, nominalFeeRate, netProfit }
  */
 export function calcNetProfit(opinionPrice, polyPrice) {
   const spread = opinionPrice - polyPrice;
@@ -72,18 +74,18 @@ export function calcNetProfit(opinionPrice, polyPrice) {
 
   // Use the average price for fee calculation
   const avgPrice = (opinionPrice + polyPrice) / 2;
-  const feeRate = effectiveFee(avgPrice);
+  const feeRate = nominalFee(avgPrice);  // Use nominal fee, no points rebate
 
   // 实际手续费 = 名义价值 * 费率 = 价格 * 费率
   // 相对于每股的手续费成本
-  const effectiveFeeRate = avgPrice * feeRate;
+  const nominalFeeRate = avgPrice * feeRate;
 
-  const netProfit = Math.abs(spreadPct) - effectiveFeeRate;
+  const netProfit = Math.abs(spreadPct) - nominalFeeRate;
 
   return {
     spread,
     spreadPct,
-    effectiveFeeRate,
+    nominalFeeRate,
     netProfit
   };
 }
