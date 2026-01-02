@@ -82,23 +82,6 @@
             color: #fff;
         }
 
-        .shares-row {
-            background: rgba(0, 217, 255, 0.1);
-            border: 1px solid rgba(0, 217, 255, 0.3);
-            padding: 12px;
-            border-radius: 8px;
-            margin-bottom: 12px;
-        }
-
-        .shares-row .input-group {
-            margin-bottom: 0;
-        }
-
-        .shares-row input {
-            font-size: 18px;
-            text-align: center;
-        }
-
         .position-row {
             background: rgba(0, 0, 0, 0.2);
             border-radius: 8px;
@@ -106,15 +89,86 @@
             margin-bottom: 8px;
         }
 
-        .position-row-header {
+        .position-header {
             display: grid;
-            grid-template-columns: 1.5fr 1fr 0.8fr 50px 36px;
+            grid-template-columns: 1.5fr 0.8fr 50px 36px;
             gap: 8px;
             align-items: end;
         }
 
-        .position-row-header .input-group {
+        .position-header .input-group {
             margin-bottom: 0;
+        }
+
+        .orders-section {
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .order-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr 30px;
+            gap: 8px;
+            align-items: end;
+            margin-bottom: 6px;
+        }
+
+        .order-row .input-group {
+            margin-bottom: 0;
+        }
+
+        .btn-remove-order {
+            background: rgba(255, 82, 82, 0.2);
+            color: #ff5252;
+            border: none;
+            border-radius: 4px;
+            padding: 8px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .btn-remove-order:hover {
+            background: rgba(255, 82, 82, 0.4);
+        }
+
+        .btn-remove-order:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+
+        .btn-add-order {
+            background: rgba(0, 217, 255, 0.2);
+            color: #00d9ff;
+            border: 1px dashed rgba(0, 217, 255, 0.5);
+            border-radius: 4px;
+            padding: 6px 12px;
+            cursor: pointer;
+            font-size: 11px;
+            width: 100%;
+            margin-top: 6px;
+        }
+
+        .btn-add-order:hover {
+            background: rgba(0, 217, 255, 0.3);
+        }
+
+        .position-summary {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 8px;
+            padding: 6px 8px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 4px;
+            font-size: 12px;
+        }
+
+        .position-summary .avg-price {
+            color: #00d9ff;
+        }
+
+        .position-summary .total-shares {
+            color: #aaa;
         }
 
         .fee-info {
@@ -232,6 +286,11 @@
             color: #ff5252;
         }
 
+        .status-warning {
+            background: rgba(255, 193, 7, 0.2);
+            color: #ffc107;
+        }
+
         .breakdown {
             margin-top: 12px;
             padding: 10px;
@@ -286,6 +345,15 @@
             font-size: 14px;
         }
 
+        .warning-text {
+            color: #ffc107;
+            font-size: 12px;
+            margin-bottom: 8px;
+            padding: 8px;
+            background: rgba(255, 193, 7, 0.1);
+            border-radius: 4px;
+        }
+
         @media (max-width: 900px) {
             .main-layout {
                 grid-template-columns: 1fr;
@@ -293,15 +361,11 @@
         }
 
         @media (max-width: 600px) {
-            .position-row-header {
-                grid-template-columns: 1fr 1fr 1fr;
+            .position-header {
+                grid-template-columns: 1fr 1fr;
             }
-            .position-row-header .input-group:first-child {
-                grid-column: span 3;
-            }
-            .position-row-header .btn-remove {
-                grid-column: span 3;
-                width: 100%;
+            .position-header .input-group:first-child {
+                grid-column: span 2;
             }
         }
     </style>
@@ -313,12 +377,6 @@
         <div class="main-layout">
             <div class="card">
                 <h2>平台持仓</h2>
-                <div class="shares-row">
-                    <div class="input-group">
-                        <label>Share 数量（所有平台相同）</label>
-                        <input type="number" id="shares" value="100" min="0.01" step="any" oninput="onSharesChange()">
-                    </div>
-                </div>
                 <div id="positions"></div>
                 <button class="btn btn-add" onclick="addPosition()">+ 添加平台</button>
             </div>
@@ -345,21 +403,44 @@
         ];
 
         let positions = [
-            { platform: 'polymarket', price: 55, type: 'YES' },
-            { platform: 'opinion', price: 40, type: 'NO' }
+            {
+                platform: 'polymarket',
+                type: 'YES',
+                orders: [{ price: 55, quantity: 100 }]
+            },
+            {
+                platform: 'opinion',
+                type: 'NO',
+                orders: [{ price: 40, quantity: 100 }]
+            }
         ];
 
         function getPlatformInfo(platformValue) {
             return PLATFORMS.find(p => p.value === platformValue) || PLATFORMS[0];
         }
 
-        function calculateOpinionFee(price, shares) {
-            // effective fee rate = topic_rate × price × (1 − price)
-            // fee = max(notional × effective fee rate, min fee $0.5)
-            // notional = shares (名义价值)
-            const p = price / 100;
+        function calculatePositionStats(position) {
+            const orders = position.orders;
+            if (orders.length === 0) return { avgPrice: 0, totalShares: 0, totalCost: 0 };
+
+            let totalValue = 0;
+            let totalShares = 0;
+
+            orders.forEach(order => {
+                totalValue += order.price * order.quantity;
+                totalShares += order.quantity;
+            });
+
+            const avgPrice = totalShares > 0 ? totalValue / totalShares : 0;
+            const totalCost = (avgPrice / 100) * totalShares;
+
+            return { avgPrice, totalShares, totalCost };
+        }
+
+        function calculateOpinionFee(avgPrice, totalShares) {
+            const p = avgPrice / 100;
             const effectiveFeeRate = FEE_K * p * (1 - p);
-            const notional = shares;
+            const notional = totalShares;
             const calculatedFee = notional * effectiveFeeRate;
             const actualFee = Math.max(calculatedFee, MIN_FEE);
             return {
@@ -372,18 +453,20 @@
 
         function renderPositions() {
             const container = document.getElementById('positions');
-            const shares = parseFloat(document.getElementById('shares').value) || 100;
 
-            container.innerHTML = positions.map((pos, index) => {
+            container.innerHTML = positions.map((pos, posIndex) => {
                 const platformInfo = getPlatformInfo(pos.platform);
-                const feeInfo = platformInfo.hasFee ? calculateOpinionFee(pos.price, shares) : null;
+                const stats = calculatePositionStats(pos);
+                const feeInfo = platformInfo.hasFee && stats.totalShares > 0
+                    ? calculateOpinionFee(stats.avgPrice, stats.totalShares)
+                    : null;
 
                 return `
                 <div class="position-row">
-                    <div class="position-row-header">
+                    <div class="position-header">
                         <div class="input-group">
                             <label>平台</label>
-                            <select onchange="updatePosition(${index}, 'platform', this.value)">
+                            <select onchange="updatePosition(${posIndex}, 'platform', this.value)">
                                 ${PLATFORMS.map(p => `
                                     <option value="${p.value}" ${pos.platform === p.value ? 'selected' : ''}>
                                         ${p.label}${p.hasFee ? ' *' : ''}
@@ -392,13 +475,8 @@
                             </select>
                         </div>
                         <div class="input-group">
-                            <label>价格 (¢)</label>
-                            <input type="number" value="${pos.price}" min="0" max="100" step="any"
-                                   oninput="updatePosition(${index}, 'price', parseFloat(this.value) || 0)">
-                        </div>
-                        <div class="input-group">
                             <label>类型</label>
-                            <select onchange="updatePosition(${index}, 'type', this.value)">
+                            <select onchange="updatePosition(${posIndex}, 'type', this.value)">
                                 <option value="YES" ${pos.type === 'YES' ? 'selected' : ''}>YES</option>
                                 <option value="NO" ${pos.type === 'NO' ? 'selected' : ''}>NO</option>
                             </select>
@@ -411,23 +489,54 @@
                         </div>
                         <div class="input-group">
                             <label>&nbsp;</label>
-                            <button class="btn btn-remove" onclick="removePosition(${index})"
+                            <button class="btn btn-remove" onclick="removePosition(${posIndex})"
                                     ${positions.length <= 2 ? 'disabled' : ''}>X</button>
                         </div>
                     </div>
-                    ${platformInfo.hasFee ? `
+
+                    <div class="orders-section">
+                        ${pos.orders.map((order, orderIndex) => `
+                            <div class="order-row">
+                                <div class="input-group">
+                                    <label>价格 (¢)</label>
+                                    <input type="number" value="${order.price}" min="0" max="100" step="any"
+                                           oninput="updateOrder(${posIndex}, ${orderIndex}, 'price', parseFloat(this.value) || 0)">
+                                </div>
+                                <div class="input-group">
+                                    <label>数量</label>
+                                    <input type="number" value="${order.quantity}" min="0" step="any"
+                                           oninput="updateOrder(${posIndex}, ${orderIndex}, 'quantity', parseFloat(this.value) || 0)">
+                                </div>
+                                <button class="btn-remove-order" onclick="removeOrder(${posIndex}, ${orderIndex})"
+                                        ${pos.orders.length <= 1 ? 'disabled' : ''}>×</button>
+                            </div>
+                        `).join('')}
+                        <button class="btn-add-order" onclick="addOrder(${posIndex})">+ 添加挂单</button>
+                    </div>
+
+                    <div class="position-summary">
+                        <span class="avg-price">均价: ${stats.avgPrice.toFixed(2)}¢</span>
+                        <span class="total-shares">数量: ${stats.totalShares}</span>
+                    </div>
+
+                    ${platformInfo.hasFee && feeInfo ? `
                     <div class="fee-info">
                         <span>手续费: $${feeInfo.actualFee.toFixed(2)} ${feeInfo.isMinFee ? '(最低$0.5)' : ''}</span>
-                        <span>费率: 0.02×${(pos.price/100).toFixed(2)}×${(1-pos.price/100).toFixed(2)} = ${(feeInfo.feeRate * 100).toFixed(3)}%</span>
+                        <span>费率: ${(feeInfo.feeRate * 100).toFixed(3)}%</span>
                     </div>
                     ` : ''}
                 </div>
             `}).join('');
+
             calculate();
         }
 
         function addPosition() {
-            positions.push({ platform: 'polymarket', price: 50, type: 'YES' });
+            positions.push({
+                platform: 'polymarket',
+                type: 'YES',
+                orders: [{ price: 50, quantity: 100 }]
+            });
             renderPositions();
         }
 
@@ -438,56 +547,89 @@
             }
         }
 
-        function onSharesChange() {
-            const shares = parseFloat(document.getElementById('shares').value) || 100;
-            // 更新所有 Opinion 平台的手续费显示
-            positions.forEach((pos, index) => {
-                const platformInfo = getPlatformInfo(pos.platform);
-                if (platformInfo.hasFee) {
-                    const feeInfo = calculateOpinionFee(pos.price, shares);
-                    const feeInfoEl = document.querySelectorAll('.position-row')[index]?.querySelector('.fee-info');
-                    if (feeInfoEl) {
-                        feeInfoEl.innerHTML = `
-                            <span>手续费: $${feeInfo.actualFee.toFixed(2)} ${feeInfo.isMinFee ? '(最低$0.5)' : ''}</span>
-                            <span>费率: 0.02×${(pos.price/100).toFixed(2)}×${(1-pos.price/100).toFixed(2)} = ${(feeInfo.feeRate * 100).toFixed(3)}%</span>
-                        `;
-                    }
-                }
-            });
-            calculate();
-        }
-
         function updatePosition(index, field, value) {
             positions[index][field] = value;
+            renderPositions();
+        }
 
-            // 只有平台或类型变化才需要重新渲染，价格变化只更新计算
-            if (field === 'price') {
-                // 更新手续费显示（如果有）
-                const platformInfo = getPlatformInfo(positions[index].platform);
-                if (platformInfo.hasFee) {
-                    const shares = parseFloat(document.getElementById('shares').value) || 100;
-                    const feeInfo = calculateOpinionFee(value, shares);
-                    const feeInfoEl = document.querySelectorAll('.position-row')[index]?.querySelector('.fee-info');
-                    if (feeInfoEl) {
-                        feeInfoEl.innerHTML = `
-                            <span>手续费: $${feeInfo.actualFee.toFixed(2)} ${feeInfo.isMinFee ? '(最低$0.5)' : ''}</span>
-                            <span>费率: 0.02×${(value/100).toFixed(2)}×${(1-value/100).toFixed(2)} = ${(feeInfo.feeRate * 100).toFixed(3)}%</span>
-                        `;
-                    }
-                }
-                calculate();
-            } else {
+        function addOrder(posIndex) {
+            positions[posIndex].orders.push({ price: 50, quantity: 100 });
+            renderPositions();
+        }
+
+        function removeOrder(posIndex, orderIndex) {
+            if (positions[posIndex].orders.length > 1) {
+                positions[posIndex].orders.splice(orderIndex, 1);
                 renderPositions();
             }
         }
 
+        function updateOrder(posIndex, orderIndex, field, value) {
+            positions[posIndex].orders[orderIndex][field] = value;
+            // 只更新计算，不重新渲染（保持焦点）
+            updatePositionSummary(posIndex);
+            calculate();
+        }
+
+        function updatePositionSummary(posIndex) {
+            const pos = positions[posIndex];
+            const platformInfo = getPlatformInfo(pos.platform);
+            const stats = calculatePositionStats(pos);
+
+            const positionRows = document.querySelectorAll('.position-row');
+            if (positionRows[posIndex]) {
+                const summaryEl = positionRows[posIndex].querySelector('.position-summary');
+                if (summaryEl) {
+                    summaryEl.innerHTML = `
+                        <span class="avg-price">均价: ${stats.avgPrice.toFixed(2)}¢</span>
+                        <span class="total-shares">数量: ${stats.totalShares}</span>
+                    `;
+                }
+
+                if (platformInfo.hasFee && stats.totalShares > 0) {
+                    const feeInfo = calculateOpinionFee(stats.avgPrice, stats.totalShares);
+                    const feeEl = positionRows[posIndex].querySelector('.fee-info');
+                    if (feeEl) {
+                        feeEl.innerHTML = `
+                            <span>手续费: $${feeInfo.actualFee.toFixed(2)} ${feeInfo.isMinFee ? '(最低$0.5)' : ''}</span>
+                            <span>费率: ${(feeInfo.feeRate * 100).toFixed(3)}%</span>
+                        `;
+                    }
+                }
+            }
+        }
+
         function calculate() {
-            const shares = parseFloat(document.getElementById('shares').value) || 0;
             const statusBadge = document.getElementById('statusBadge');
             const resultsDiv = document.getElementById('results');
             const breakdownDiv = document.getElementById('breakdown');
 
-            if (shares <= 0 || positions.length < 2) {
+            // 计算每个平台的统计数据
+            const positionStats = positions.map(pos => {
+                const platformInfo = getPlatformInfo(pos.platform);
+                const stats = calculatePositionStats(pos);
+                let fee = 0;
+
+                if (platformInfo.hasFee && stats.totalShares > 0) {
+                    const feeInfo = calculateOpinionFee(stats.avgPrice, stats.totalShares);
+                    fee = feeInfo.actualFee;
+                }
+
+                return {
+                    ...pos,
+                    platformInfo,
+                    ...stats,
+                    fee
+                };
+            });
+
+            // 检查所有平台的 shares 是否相同
+            const shareCounts = positionStats.map(p => p.totalShares);
+            const uniqueShares = [...new Set(shareCounts.filter(s => s > 0))];
+            const sharesMatch = uniqueShares.length <= 1;
+            const shares = uniqueShares[0] || 0;
+
+            if (shares <= 0) {
                 statusBadge.className = 'status-badge';
                 statusBadge.textContent = '等待输入...';
                 resultsDiv.innerHTML = '';
@@ -495,24 +637,15 @@
                 return;
             }
 
+            // 计算总成本
             let totalCost = 0;
             let totalFees = 0;
             let yesCount = 0;
             let noCount = 0;
 
-            positions.forEach(pos => {
-                const platformInfo = getPlatformInfo(pos.platform);
-                const baseCost = (pos.price / 100) * shares;
-                let fee = 0;
-
-                if (platformInfo.hasFee) {
-                    const feeInfo = calculateOpinionFee(pos.price, shares);
-                    fee = feeInfo.actualFee;
-                }
-
-                totalCost += baseCost + fee;
-                totalFees += fee;
-
+            positionStats.forEach(pos => {
+                totalCost += pos.totalCost + pos.fee;
+                totalFees += pos.fee;
                 if (pos.type === 'YES') yesCount++;
                 else noCount++;
             });
@@ -527,9 +660,12 @@
             const profitIfNo = payoutIfNo - totalCost;
 
             const guaranteedProfit = Math.min(profitIfYes, profitIfNo);
-            const hasArbitrage = hasYes && hasNo && guaranteedProfit > 0;
+            const hasArbitrage = hasYes && hasNo && guaranteedProfit > 0 && sharesMatch;
 
-            if (hasArbitrage) {
+            if (!sharesMatch) {
+                statusBadge.className = 'status-badge status-warning';
+                statusBadge.textContent = '各平台数量不一致';
+            } else if (hasArbitrage) {
                 statusBadge.className = 'status-badge status-arbitrage';
                 statusBadge.textContent = '存在套利机会!';
             } else if (hasYes && hasNo) {
@@ -543,7 +679,13 @@
             const profitClass = guaranteedProfit > 0 ? 'profit-positive' :
                                (guaranteedProfit < 0 ? 'profit-negative' : 'profit-neutral');
 
+            let warningHtml = '';
+            if (!sharesMatch) {
+                warningHtml = `<div class="warning-text">各平台 shares 数量不一致: ${shareCounts.join(', ')}</div>`;
+            }
+
             resultsDiv.innerHTML = `
+                ${warningHtml}
                 <div class="scenario-row">
                     <div class="scenario-box yes-wins">
                         <div class="label">YES 赢</div>
@@ -583,22 +725,14 @@
             `;
 
             let breakdownHtml = '<h3>持仓明细</h3>';
-            positions.forEach(pos => {
-                const platformInfo = getPlatformInfo(pos.platform);
-                const baseCost = (pos.price / 100) * shares;
-                let totalPosCost = baseCost;
-                let feeStr = '';
-
-                if (platformInfo.hasFee) {
-                    const feeInfo = calculateOpinionFee(pos.price, shares);
-                    totalPosCost += feeInfo.actualFee;
-                    feeStr = ` +$${feeInfo.actualFee.toFixed(2)}`;
-                }
+            positionStats.forEach(pos => {
+                let feeStr = pos.fee > 0 ? ` +$${pos.fee.toFixed(2)}` : '';
+                let totalPosCost = pos.totalCost + pos.fee;
 
                 breakdownHtml += `
                     <div class="breakdown-item">
-                        <span>${platformInfo.label} ${pos.type}</span>
-                        <span>$${baseCost.toFixed(2)}${feeStr} = $${totalPosCost.toFixed(2)}</span>
+                        <span>${pos.platformInfo.label} ${pos.type}</span>
+                        <span>${pos.avgPrice.toFixed(2)}¢ × ${pos.totalShares} = $${totalPosCost.toFixed(2)}</span>
                     </div>
                 `;
             });
