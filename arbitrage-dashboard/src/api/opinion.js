@@ -35,12 +35,10 @@ export async function fetchMarketByTopicId(topicId, apiKey) {
 
   try {
     // Use /market/{marketId} endpoint to get market details (including childMarkets)
-    const res = await fetch(`${BASE_URL}/market/${topicId}`, {
-      headers: {
-        'apikey': apiKey,
-        'Content-Type': 'application/json'
-      }
-    });
+    const headers = { 'Content-Type': 'application/json' };
+    if (apiKey) headers['apikey'] = apiKey;
+
+    const res = await fetch(`${BASE_URL}/market/${topicId}`, { headers });
 
     const text = await res.text();
     console.log('Opinion /market/200 raw response:', text.substring(0, 2000));
@@ -130,8 +128,11 @@ export async function fetchMarketByTopicId(topicId, apiKey) {
 export async function fetchPrices(marketConfigs, apiKey) {
   const results = new Map();
 
-  if (!apiKey) {
-    console.warn('Opinion API key not provided');
+  // On localhost: apiKey is from VITE_OPINION_API_KEY (required)
+  // On Vercel: apiKey can be empty, serverless function adds it
+  const isProduction = import.meta.env.PROD;
+  if (!apiKey && !isProduction) {
+    console.warn('Opinion API key not provided (development mode)');
     return results;
   }
 
@@ -209,14 +210,12 @@ export async function fetchPrices(marketConfigs, apiKey) {
  */
 async function fetchTokenData(tokenId, apiKey) {
   try {
+    const headers = { 'Content-Type': 'application/json' };
+    if (apiKey) headers['apikey'] = apiKey;
+
     const orderbookRes = await fetch(
       `${BASE_URL}/token/orderbook?token_id=${tokenId}`,
-      {
-        headers: {
-          'apikey': apiKey,
-          'Content-Type': 'application/json'
-        }
-      }
+      { headers }
     );
 
     if (!orderbookRes.ok) {
