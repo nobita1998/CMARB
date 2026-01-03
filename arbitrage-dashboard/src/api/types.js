@@ -28,8 +28,8 @@
  * @property {PriceData} poly - Polymarket price data
  * @property {number} spread - Opinion price - Poly price
  * @property {number} spreadPct - Spread as percentage
- * @property {number} effectiveFee - Effective fee after rebate
- * @property {number} netProfit - |spreadPct| - effectiveFee
+ * @property {number} feeRate - Fee rate
+ * @property {number} netProfit - |spreadPct| - fee
  * @property {'HOT'|'GO'|'NONE'} signal - Trading signal
  * @property {string} direction - Direction description
  */

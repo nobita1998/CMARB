@@ -11,6 +11,18 @@ const BASE_URL = '/api/opinion';
 // Cache for market metadata (topicId -> tokens)
 const marketCache = new Map();
 
+// Cache for market volume (topicId -> volume)
+const volumeCache = new Map();
+
+/**
+ * Get cached volume for a topicId
+ * @param {number} topicId
+ * @returns {number|null} Volume in USD or null if not cached
+ */
+export function getMarketVolume(topicId) {
+  return volumeCache.get(topicId) ?? null;
+}
+
 /**
  * Convert raw orderbook level to standardized format
  */
@@ -67,6 +79,12 @@ export async function fetchMarketByTopicId(topicId, apiKey) {
     const market = data.result;
     console.log('Opinion market childMarkets:', market.childMarkets);
 
+    // Extract and cache volume (try various field names)
+    const volume = market.volume || market.totalVolume || market.volumeUsd ||
+                   market.total_volume || market.volume_usd || 0;
+    volumeCache.set(topicId, parseFloat(volume) || 0);
+    console.log(`Opinion market ${topicId} volume:`, volume);
+
     // Check if this is a multi-outcome market with childMarkets
     if (market.childMarkets && market.childMarkets.length > 0) {
       const outcomes = market.childMarkets.map(child => ({
@@ -76,7 +94,7 @@ export async function fetchMarketByTopicId(topicId, apiKey) {
       }));
 
       console.log('Opinion parsed outcomes:', outcomes);
-      const result = { outcomes, raw: market };
+      const result = { outcomes, raw: market, volume };
       marketCache.set(cacheKey, result);
       return result;
     }
@@ -125,6 +143,37 @@ export async function fetchMarketByTopicId(topicId, apiKey) {
  * @param {string} apiKey - Opinion API key
  * @returns {Promise<Map<string, PriceData>>}
  */
+/**
+ * Fetch market volume by topicId (lightweight, just for volume)
+ */
+export async function fetchMarketVolume(topicId, apiKey) {
+  // Check cache first
+  if (volumeCache.has(topicId)) {
+    return volumeCache.get(topicId);
+  }
+
+  try {
+    const headers = { 'Content-Type': 'application/json' };
+    if (apiKey) headers['apikey'] = apiKey;
+
+    const res = await fetch(`${BASE_URL}/market/${topicId}`, { headers });
+    if (!res.ok) return null;
+
+    const data = await res.json();
+    if (data.errno !== 0 && data.errno !== undefined) return null;
+
+    const market = data.result;
+    const volume = market?.volume || market?.totalVolume || market?.volumeUsd ||
+                   market?.total_volume || market?.volume_usd || 0;
+    const parsedVolume = parseFloat(volume) || 0;
+    volumeCache.set(topicId, parsedVolume);
+    return parsedVolume;
+  } catch (error) {
+    console.error(`Failed to fetch volume for topicId ${topicId}:`, error);
+    return null;
+  }
+}
+
 export async function fetchPrices(marketConfigs, apiKey) {
   const results = new Map();
 
@@ -282,4 +331,4 @@ export async function testConnection(apiKey) {
   }
 }
 
-export default { fetchPrices, fetchMarketByTopicId, testConnection };
+export default { fetchPrices, fetchMarketByTopicId, fetchMarketVolume, getMarketVolume, testConnection };

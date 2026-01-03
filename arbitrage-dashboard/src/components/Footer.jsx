@@ -1,51 +1,10 @@
-import { getFeeReferenceTable } from '../utils/fees';
-
 /**
- * Footer with fee reference table and operation guide
+ * Footer with operation guide
  */
 export function Footer() {
-  const feeTable = getFeeReferenceTable();
-
   return (
     <footer className="mt-8 border-t border-slate-200 pt-6">
-      <div className="grid grid-cols-2 gap-8">
-        {/* Fee Reference Table */}
-        <div>
-          <h3 className="text-xs text-slate-500 uppercase tracking-wide mb-3">
-            Opinion Fee Reference
-          </h3>
-          <div className="card rounded-lg overflow-hidden">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="border-b border-slate-200">
-                  <th className="text-left px-3 py-2 text-slate-500">Price</th>
-                  <th className="text-right px-3 py-2 text-slate-500">Nominal</th>
-                  <th className="text-right px-3 py-2 text-slate-500">Effective</th>
-                </tr>
-              </thead>
-              <tbody>
-                {feeTable.map((row, i) => (
-                  <tr key={i} className="border-b border-slate-100">
-                    <td className="px-3 py-1.5 text-slate-700">
-                      {(row.price * 100).toFixed(0)}¢
-                    </td>
-                    <td className="px-3 py-1.5 text-right text-slate-500">
-                      {(row.nominalFee * 100).toFixed(3)}%
-                    </td>
-                    <td className="px-3 py-1.5 text-right text-amber-600">
-                      {(row.effectiveFee * 100).toFixed(3)}%
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="text-xs text-slate-400 mt-2 space-y-1">
-            <div>* Effective fee = Nominal fee × 0.5 (after points rebate)</div>
-            <div>* Minimum fee: $0.50 per trade</div>
-          </div>
-        </div>
-
+      <div className="max-w-xl mx-auto">
         {/* Operation Guide */}
         <div>
           <h3 className="text-xs text-slate-500 uppercase tracking-wide mb-3">

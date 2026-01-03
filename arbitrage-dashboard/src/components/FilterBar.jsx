@@ -3,13 +3,13 @@ import { getMarketTypes } from '../config/markets';
 /**
  * Filter and sort controls
  */
-export function FilterBar({ filter, sortBy, profitableOnly, onFilterChange, onSortChange, onProfitableOnlyChange }) {
+export function FilterBar({ filter, sortBy, profitableOnly, myPositionsOnly, onFilterChange, onSortChange, onProfitableOnlyChange, onMyPositionsOnlyChange }) {
   const types = getMarketTypes();
 
   const sortOptions = [
-    { value: 'netProfit', label: 'Net Profit' },
-    { value: 'spread', label: 'Spread' },
-    { value: 'depth', label: 'Depth' }
+    { value: 'netProfit', label: 'Profit %' },
+    { value: 'apy', label: 'APY %' },
+    { value: 'exitPct', label: 'Exit %' }
   ];
 
   return (
@@ -35,6 +35,17 @@ export function FilterBar({ filter, sortBy, profitableOnly, onFilterChange, onSo
       </div>
 
       <div className="flex items-center gap-4">
+        {/* My positions only toggle */}
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={myPositionsOnly}
+            onChange={(e) => onMyPositionsOnlyChange(e.target.checked)}
+            className="w-4 h-4 rounded border-slate-300 text-purple-500 focus:ring-purple-500"
+          />
+          <span className="text-xs text-slate-600">My Positions</span>
+        </label>
+
         {/* Profitable only toggle */}
         <label className="flex items-center gap-2 cursor-pointer">
           <input

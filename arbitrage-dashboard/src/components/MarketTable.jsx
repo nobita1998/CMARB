@@ -1,32 +1,4 @@
 import { formatPct } from '../utils/format';
-import { calcOpinionTradeFee, MIN_FEE_USD } from '../utils/fees';
-
-/**
- * Calculate days until settlement date
- * @param {string} settlementDate - YYYY-MM-DD format
- * @returns {number|null} Days to settlement, or null if invalid/past
- */
-function getDaysToSettlement(settlementDate) {
-  if (!settlementDate) return null;
-  const settlement = new Date(settlementDate);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  settlement.setHours(0, 0, 0, 0);
-  const diffTime = settlement.getTime() - today.getTime();
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  return diffDays > 0 ? diffDays : null;
-}
-
-/**
- * Calculate annualized return
- * @param {number} profitPct - Profit percentage (e.g., 0.05 = 5%)
- * @param {number} daysToSettlement - Days until settlement
- * @returns {number|null} Annualized return percentage
- */
-function calcAnnualizedReturn(profitPct, daysToSettlement) {
-  if (!daysToSettlement || daysToSettlement <= 0) return null;
-  return profitPct * (365 / daysToSettlement);
-}
 
 /**
  * Format price as cents
@@ -59,25 +31,9 @@ function formatUsd(usd) {
 }
 
 /**
- * Calculate Opinion fee for a trade (with $0.5 minimum)
- * Returns fee in USD for given price and shares
- */
-function calcOpinionFee(price, shares) {
-  const fee = calcOpinionTradeFee(price, shares);
-  return fee.actualFee;
-}
-
-/**
- * Polymarket has no trading fees
- */
-function calcPolyFee(price, shares) {
-  return 0;
-}
-
-/**
  * Main market table showing orderbook style
  */
-export function MarketTable({ opportunities, totalCount = 0, profitableOnly = false }) {
+export function MarketTable({ opportunities, totalCount = 0, profitableOnly = false, matchedPositions, arbitragePositions, currentPage = 1, totalPages = 1, onPageChange }) {
   if (opportunities.length === 0) {
     const message = profitableOnly && totalCount > 0
       ? `No profitable opportunities found. (${totalCount} markets loaded)`
@@ -94,9 +50,51 @@ export function MarketTable({ opportunities, totalCount = 0, profitableOnly = fa
 
   return (
     <div className="space-y-4">
-      {opportunities.map((opp) => (
-        <OrderbookCard key={`${opp.eventId}-${opp.outcome}`} opp={opp} />
-      ))}
+      {opportunities.map((opp) => {
+        const positionKey = `${opp.eventId}-${opp.outcome}`;
+        const userPosition = matchedPositions?.get(positionKey);
+        const arbPosition = arbitragePositions?.get(positionKey);
+        return (
+          <OrderbookCard
+            key={positionKey}
+            opp={opp}
+            userPosition={userPosition}
+            arbPosition={arbPosition}
+          />
+        );
+      })}
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-4 py-4">
+          <button
+            onClick={() => onPageChange(currentPage - 1)}
+            disabled={currentPage <= 1}
+            className={`px-3 py-1 text-sm rounded border transition-colors ${
+              currentPage <= 1
+                ? 'bg-slate-100 text-slate-300 border-slate-200 cursor-not-allowed'
+                : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
+            }`}
+          >
+            ← Prev
+          </button>
+          <span className="text-sm text-slate-600">
+            Page <span className="font-bold">{currentPage}</span> of <span className="font-bold">{totalPages}</span>
+            <span className="text-slate-400 ml-2">({totalCount} total)</span>
+          </span>
+          <button
+            onClick={() => onPageChange(currentPage + 1)}
+            disabled={currentPage >= totalPages}
+            className={`px-3 py-1 text-sm rounded border transition-colors ${
+              currentPage >= totalPages
+                ? 'bg-slate-100 text-slate-300 border-slate-200 cursor-not-allowed'
+                : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
+            }`}
+          >
+            Next →
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -104,57 +102,30 @@ export function MarketTable({ opportunities, totalCount = 0, profitableOnly = fa
 /**
  * Orderbook style card for each outcome
  */
-function OrderbookCard({ opp }) {
+function OrderbookCard({ opp, userPosition, arbPosition }) {
   // Get orderbook data
   const opinionYes = opp.opinion || {};
   const opinionNo = opp.opinionNo || {};
   const polyYes = opp.poly || {};
   const polyNo = opp.polyNo || {};
 
-  // Best prices
-  const opinionYesAsk = opinionYes.ask || 0;
-  const opinionNoAsk = opinionNo.ask || 0;
-  const polyYesAsk = polyYes.ask || 0;
-  const polyNoAsk = polyNo.ask || 0;
+  // Use pre-calculated strategy details from useArbitrage
+  const sd = opp.strategyDetails || {};
+  const isBuyOpinionYes = sd.isBuyOpinionYes ?? true;
+  const bestProfit = sd.profit || 0;
+  const bestProfitPct = sd.profitPct || 0;
+  const bestFee = sd.fee || 0;
+  const bestCost = sd.costPerShare || 0;
+  const bestTotalCost = sd.totalCost || 0;
+  const bestAvailShares = sd.shares || 0;
 
-  // Get shares at best ask
-  const opinionYesShares = opinionYes.asks?.[0]?.size || opinionYes.shares || 0;
-  const opinionNoShares = opinionNo.asks?.[0]?.size || opinionNo.shares || 0;
-  const polyYesShares = polyYes.asks?.[0]?.size || polyYes.shares || 0;
-  const polyNoShares = polyNo.asks?.[0]?.size || polyNo.shares || 0;
+  // Levels used in the strategy (for highlighting)
+  const opinionLevels = sd.opinionLevels || 1;
+  const polyLevels = sd.polyLevels || 1;
 
-  // Calculate available shares for each strategy
-  const availShares1 = Math.min(opinionYesShares, polyNoShares);
-  const availShares2 = Math.min(polyYesShares, opinionNoShares);
-
-  // Strategy 1: Buy Opinion YES + Buy Poly NO (using actual available shares)
-  const cost1 = opinionYesAsk + polyNoAsk;
-  const fee1 = calcOpinionFee(opinionYesAsk, availShares1) + calcPolyFee(polyNoAsk, availShares1);
-  const totalCost1 = cost1 * availShares1;
-  const payout1 = availShares1; // If either wins, you get 1 per share
-  const profit1 = payout1 - totalCost1 - fee1;
-  const profitPct1 = totalCost1 > 0 ? profit1 / totalCost1 : 0;
-
-  // Strategy 2: Buy Poly YES + Buy Opinion NO (using actual available shares)
-  const cost2 = polyYesAsk + opinionNoAsk;
-  const fee2 = calcPolyFee(polyYesAsk, availShares2) + calcOpinionFee(opinionNoAsk, availShares2);
-  const totalCost2 = cost2 * availShares2;
-  const payout2 = availShares2;
-  const profit2 = payout2 - totalCost2 - fee2;
-  const profitPct2 = totalCost2 > 0 ? profit2 / totalCost2 : 0;
-
-  // Determine best strategy (by profit percentage)
-  const isBuyOpinionYes = profitPct1 >= profitPct2;
-  const bestProfit = isBuyOpinionYes ? profit1 : profit2;
-  const bestProfitPct = isBuyOpinionYes ? profitPct1 : profitPct2;
-  const bestFee = isBuyOpinionYes ? fee1 : fee2;
-  const bestCost = isBuyOpinionYes ? cost1 : cost2;
-  const bestTotalCost = isBuyOpinionYes ? totalCost1 : totalCost2;
-  const bestAvailShares = isBuyOpinionYes ? availShares1 : availShares2;
-
-  // Calculate annualized return if settlement date is available
-  const daysToSettlement = getDaysToSettlement(opp.settlementDate);
-  const annualizedReturn = calcAnnualizedReturn(bestProfitPct, daysToSettlement);
+  // Use pre-calculated values from opportunity
+  const daysToSettlement = opp.daysToSettlement;
+  const annualizedReturn = opp.apy;
 
   // Determine signal based on profit percentage
   let signal = null;
@@ -164,27 +135,46 @@ function OrderbookCard({ opp }) {
     signal = 'GO';
   }
 
-  const cardBorder = signal === 'HOT'
+  // User position info
+  const hasUserPosition = userPosition && (
+    userPosition.opinion?.yes || userPosition.opinion?.no ||
+    userPosition.poly?.yes || userPosition.poly?.no
+  );
+
+  // Arbitrage position exit status
+  const hasArbPosition = !!arbPosition?.exitProfit;
+  const canExit = arbPosition?.exitProfit?.canExit;
+
+  const cardBorder = canExit
+    ? 'border-purple-500 ring-2 ring-purple-300'
+    : signal === 'HOT'
     ? 'border-orange-400'
     : signal === 'GO'
     ? 'border-green-400'
+    : hasUserPosition
+    ? 'border-purple-300'
     : 'border-slate-200';
 
   return (
     <div className={`rounded-lg overflow-hidden border-2 ${cardBorder} bg-white shadow-sm`}>
       {/* Header */}
-      <div className="px-4 py-2 bg-slate-800 flex items-center justify-between">
+      <div className={`px-4 py-2 flex items-center justify-between ${hasUserPosition ? 'bg-purple-900' : 'bg-slate-800'}`}>
         <div className="flex items-center gap-2">
           <span className="font-bold text-white">{opp.outcome}</span>
           <span className="text-slate-400 text-xs">{opp.eventName}</span>
           {daysToSettlement !== null && (
-            <span className="text-slate-500 text-xs bg-slate-700 px-1.5 py-0.5 rounded">
+            <span className="text-slate-200 text-xs bg-slate-600 px-1.5 py-0.5 rounded">
               {opp.settlementDate} ({daysToSettlement}d)
             </span>
           )}
         </div>
         <div className="flex items-center gap-3">
-          {signal && (
+          {canExit && (
+            <span className="bg-gradient-to-r from-purple-500 to-pink-500 text-white px-2 py-0.5 rounded text-xs font-bold animate-pulse">
+              EXIT NOW
+            </span>
+          )}
+          {signal && !canExit && (
             <span className={signal === 'HOT'
               ? 'bg-gradient-to-r from-orange-500 to-red-500 text-white px-2 py-0.5 rounded text-xs font-bold animate-pulse'
               : 'border border-green-400 text-green-400 px-2 py-0.5 rounded text-xs font-bold'
@@ -195,7 +185,7 @@ function OrderbookCard({ opp }) {
           <span className={`text-sm font-mono font-bold ${bestProfitPct > 0 ? 'text-green-400' : 'text-red-400'}`}>
             {formatPct(bestProfitPct)}
           </span>
-          {annualizedReturn !== null && bestProfitPct > 0 && (
+          {annualizedReturn > 0 && (
             <span className="text-sm font-mono font-bold text-purple-400" title={`${daysToSettlement} days to settlement`}>
               APY: {formatPct(annualizedReturn)}
             </span>
@@ -207,7 +197,12 @@ function OrderbookCard({ opp }) {
       <div className="grid grid-cols-2">
         {/* Opinion Side - Orange Theme */}
         <div className="bg-gradient-to-b from-orange-50 to-orange-100/50 p-3 border-r-2 border-orange-200">
-          <div className="flex items-center justify-center gap-2 mb-3">
+          <div className="flex items-center justify-center gap-2 mb-2">
+            {opp.isLowVolume && (
+              <span className="text-yellow-600 text-xs" title="Volume < $1M">
+                ✨ low vol
+              </span>
+            )}
             <div className="w-2 h-2 rounded-full bg-orange-500"></div>
             {opp.opinionUrl ? (
               <a href={opp.opinionUrl} target="_blank" rel="noopener noreferrer"
@@ -218,27 +213,41 @@ function OrderbookCard({ opp }) {
               <span className="text-sm font-bold text-orange-700">OPINION</span>
             )}
           </div>
+          {/* User Holdings */}
+          {(userPosition?.opinion?.yes || userPosition?.opinion?.no) && (
+            <div className="mb-2 px-2 py-1 bg-purple-100 rounded text-xs text-center">
+              <span className="text-purple-700 font-medium">My Holdings: </span>
+              {userPosition.opinion.yes && (
+                <span className="text-green-600 mr-2">YES {formatShares(userPosition.opinion.yes.shares)}</span>
+              )}
+              {userPosition.opinion.no && (
+                <span className="text-red-600">NO {formatShares(userPosition.opinion.no.shares)}</span>
+              )}
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-3">
             {/* YES Column */}
             <OrderbookColumn
               title="YES"
               data={opinionYes}
-              highlight={isBuyOpinionYes}
+              highlightLevels={isBuyOpinionYes ? opinionLevels : 0}
               theme="orange"
+              userHolding={!!userPosition?.opinion?.yes}
             />
             {/* NO Column */}
             <OrderbookColumn
               title="NO"
               data={opinionNo}
-              highlight={!isBuyOpinionYes}
+              highlightLevels={!isBuyOpinionYes ? opinionLevels : 0}
               theme="orange"
+              userHolding={!!userPosition?.opinion?.no}
             />
           </div>
         </div>
 
         {/* Poly Side - Blue Theme */}
         <div className="bg-gradient-to-b from-blue-50 to-blue-100/50 p-3">
-          <div className="flex items-center justify-center gap-2 mb-3">
+          <div className="flex items-center justify-center gap-2 mb-2">
             <div className="w-2 h-2 rounded-full bg-blue-500"></div>
             {opp.polyUrl ? (
               <a href={opp.polyUrl} target="_blank" rel="noopener noreferrer"
@@ -249,20 +258,34 @@ function OrderbookCard({ opp }) {
               <span className="text-sm font-bold text-blue-700">POLYMARKET</span>
             )}
           </div>
+          {/* User Holdings */}
+          {(userPosition?.poly?.yes || userPosition?.poly?.no) && (
+            <div className="mb-2 px-2 py-1 bg-purple-100 rounded text-xs text-center">
+              <span className="text-purple-700 font-medium">My Holdings: </span>
+              {userPosition.poly.yes && (
+                <span className="text-green-600 mr-2">YES {formatShares(userPosition.poly.yes.shares)}</span>
+              )}
+              {userPosition.poly.no && (
+                <span className="text-red-600">NO {formatShares(userPosition.poly.no.shares)}</span>
+              )}
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-3">
             {/* YES Column */}
             <OrderbookColumn
               title="YES"
               data={polyYes}
-              highlight={!isBuyOpinionYes}
+              highlightLevels={!isBuyOpinionYes ? polyLevels : 0}
               theme="blue"
+              userHolding={!!userPosition?.poly?.yes}
             />
             {/* NO Column */}
             <OrderbookColumn
               title="NO"
               data={polyNo}
-              highlight={isBuyOpinionYes}
+              highlightLevels={isBuyOpinionYes ? polyLevels : 0}
               theme="blue"
+              userHolding={!!userPosition?.poly?.no}
             />
           </div>
         </div>
@@ -276,8 +299,8 @@ function OrderbookCard({ opp }) {
               <span className="text-green-600 font-bold">Strategy:</span>
               <span className="text-slate-700 font-medium">
                 {isBuyOpinionYes
-                  ? <>Buy <span className="text-orange-600">Opinion YES</span> {formatShares(bestAvailShares)} @ {formatPrice(opinionYesAsk)}¢ + Buy <span className="text-blue-600">Poly NO</span> {formatShares(bestAvailShares)} @ {formatPrice(polyNoAsk)}¢</>
-                  : <>Buy <span className="text-blue-600">Poly YES</span> {formatShares(bestAvailShares)} @ {formatPrice(polyYesAsk)}¢ + Buy <span className="text-orange-600">Opinion NO</span> {formatShares(bestAvailShares)} @ {formatPrice(opinionNoAsk)}¢</>
+                  ? <>Buy <span className="text-orange-600">Opinion YES</span> <span className="text-orange-400">(L1{opinionLevels > 1 ? `-${opinionLevels}` : ''})</span> {formatShares(bestAvailShares)} @ {formatPrice(sd.opinionAvgPrice)}¢ + Buy <span className="text-blue-600">Poly NO</span> <span className="text-blue-400">(L1{polyLevels > 1 ? `-${polyLevels}` : ''})</span> @ {formatPrice(sd.polyAvgPrice)}¢</>
+                  : <>Buy <span className="text-blue-600">Poly YES</span> <span className="text-blue-400">(L1{polyLevels > 1 ? `-${polyLevels}` : ''})</span> {formatShares(bestAvailShares)} @ {formatPrice(sd.polyAvgPrice)}¢ + Buy <span className="text-orange-600">Opinion NO</span> <span className="text-orange-400">(L1{opinionLevels > 1 ? `-${opinionLevels}` : ''})</span> @ {formatPrice(sd.opinionAvgPrice)}¢</>
                 }
               </span>
             </div>
@@ -309,20 +332,63 @@ function OrderbookCard({ opp }) {
           </div>
         </div>
       )}
+
+      {/* Position Exit Summary - show when user has arbitrage position */}
+      {hasArbPosition && (
+        <div className={`px-4 py-2 border-t text-xs ${canExit ? 'bg-purple-100 border-purple-300' : 'bg-slate-100 border-slate-200'}`}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className={`font-bold ${canExit ? 'text-purple-700' : 'text-slate-600'}`}>Arbitrage Position:</span>
+              <span className="text-slate-600">
+                {arbPosition.exitProfit.strategy === 'opinion-yes'
+                  ? 'Opinion YES + Poly NO'
+                  : 'Poly YES + Opinion NO'
+                }
+                <span className="ml-1 text-slate-500">({formatShares(arbPosition.exitProfit.shares)} shares)</span>
+              </span>
+            </div>
+            <div className="flex items-center gap-3 font-mono">
+              <span className="text-slate-500">
+                Entry: <span className="text-slate-700">${arbPosition.exitProfit.entryCost.toFixed(2)}</span>
+                <span className="text-slate-400 ml-1">({(arbPosition.exitProfit.entryPriceSum * 100).toFixed(1)}%)</span>
+              </span>
+              <span className="text-slate-500">
+                Exit: <span className="text-slate-700">${arbPosition.exitProfit.exitValue.toFixed(2)}</span>
+                <span className={`ml-1 ${arbPosition.exitProfit.exitPriceSum >= 1 ? 'text-green-500' : 'text-amber-500'}`}>
+                  ({(arbPosition.exitProfit.exitPriceSum * 100).toFixed(1)}%)
+                </span>
+              </span>
+              <span className="text-amber-600">
+                Fee: ${arbPosition.exitProfit.exitFee.toFixed(2)}
+              </span>
+              <span className={`font-bold ${canExit ? 'text-purple-600' : arbPosition.exitProfit.netProfit >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                P/L: {arbPosition.exitProfit.netProfit >= 0 ? '+' : ''}${arbPosition.exitProfit.netProfit.toFixed(2)} ({formatPct(arbPosition.exitProfit.profitPct)})
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 /**
  * Orderbook column showing asks and bids with depth
+ * @param {number} highlightLevels - Number of ask levels to highlight (1-3, 0 = none)
+ * @param {boolean} userHolding - Whether user holds this side (to highlight exit bid price)
  */
-function OrderbookColumn({ title, data, highlight, theme }) {
+function OrderbookColumn({ title, data, highlightLevels = 0, theme, userHolding }) {
   const asks = data.asks || [];
   const bids = data.bids || [];
 
   const borderColor = theme === 'orange' ? 'border-orange-200' : 'border-blue-200';
   const titleColor = theme === 'orange' ? 'text-orange-600' : 'text-blue-600';
   const titleBorder = theme === 'orange' ? 'border-orange-100' : 'border-blue-100';
+
+  // Asks are displayed in reverse order (lowest at bottom)
+  // To highlight first N levels, we highlight the last N items in reversed array
+  const displayAsks = asks.slice(0, 3).reverse();
+  const displayLen = displayAsks.length;
 
   return (
     <div className={`bg-white/80 rounded-lg p-2 border ${borderColor}`}>
@@ -337,35 +403,43 @@ function OrderbookColumn({ title, data, highlight, theme }) {
 
         {/* Asks (sell orders) - show in reverse so lowest is at bottom */}
         <div className="border-b border-slate-100 pb-1 mb-1">
-          {asks.slice(0, 3).reverse().map((level, i) => (
-            <div
-              key={`ask-${i}`}
-              className={`grid grid-cols-3 gap-1 px-1 py-0.5 rounded ${
-                i === asks.slice(0, 3).length - 1 && highlight
-                  ? 'bg-green-100 text-green-700 font-bold ring-1 ring-green-300'
-                  : 'text-red-600'
-              }`}
-            >
-              <span className="text-left">{formatPrice(level.price)}¢</span>
-              <span className="text-center text-slate-500">{formatShares(level.size)}</span>
-              <span className="text-right text-slate-500">{formatUsd(level.size * level.price)}</span>
-            </div>
-          ))}
+          {displayAsks.map((level, i) => {
+            // Highlight if this row is within the highlighted levels (from the bottom)
+            const isHighlighted = highlightLevels > 0 && i >= displayLen - highlightLevels;
+            return (
+              <div
+                key={`ask-${i}`}
+                className={`grid grid-cols-3 gap-1 px-1 py-0.5 rounded ${
+                  isHighlighted
+                    ? 'bg-green-100 text-green-700 font-bold ring-1 ring-green-300'
+                    : 'text-red-600'
+                }`}
+              >
+                <span className="text-left">{formatPrice(level.price)}¢</span>
+                <span className={`text-center ${isHighlighted ? 'text-green-600' : 'text-slate-500'}`}>{formatShares(level.size)}</span>
+                <span className={`text-right ${isHighlighted ? 'text-green-600' : 'text-slate-500'}`}>{formatUsd(level.size * level.price)}</span>
+              </div>
+            );
+          })}
           {asks.length === 0 && (
             <div className="text-center text-slate-300 py-1">—</div>
           )}
         </div>
 
-        {/* Bids (buy orders) */}
+        {/* Bids (buy orders) - highlight first row if user holds this side */}
         <div>
           {bids.slice(0, 3).map((level, i) => (
             <div
               key={`bid-${i}`}
-              className="grid grid-cols-3 gap-1 px-1 py-0.5 text-green-600"
+              className={`grid grid-cols-3 gap-1 px-1 py-0.5 rounded ${
+                i === 0 && userHolding
+                  ? 'bg-purple-100 text-purple-700 font-bold ring-1 ring-purple-300'
+                  : 'text-green-600'
+              }`}
             >
               <span className="text-left">{formatPrice(level.price)}¢</span>
-              <span className="text-center text-slate-500">{formatShares(level.size)}</span>
-              <span className="text-right text-slate-500">{formatUsd(level.size * level.price)}</span>
+              <span className={`text-center ${i === 0 && userHolding ? 'text-purple-500' : 'text-slate-500'}`}>{formatShares(level.size)}</span>
+              <span className={`text-right ${i === 0 && userHolding ? 'text-purple-500' : 'text-slate-500'}`}>{formatUsd(level.size * level.price)}</span>
             </div>
           ))}
           {bids.length === 0 && (

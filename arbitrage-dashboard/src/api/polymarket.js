@@ -63,8 +63,10 @@ export async function fetchMarketBySlug(slug) {
           console.warn(`Failed to parse clobTokenIds for ${m.groupItemTitle}`);
         }
 
+        // For binary markets (single market with empty groupItemTitle), use 'Yes'
+        const isBinaryMarket = event.markets.length === 1 && !m.groupItemTitle;
         return {
-          name: m.groupItemTitle || m.question,
+          name: isBinaryMarket ? 'Yes' : (m.groupItemTitle || m.question),
           yesTokenId: tokens[0],
           noTokenId: tokens[1],
           outcomePrices: m.outcomePrices

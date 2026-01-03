@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { fetchPrices as fetchOpinionPrices, testConnection as testOpinion } from '../api/opinion';
+import { fetchPrices as fetchOpinionPrices, testConnection as testOpinion, fetchMarketVolume } from '../api/opinion';
 import { fetchPrices as fetchPolyPrices, testConnection as testPoly } from '../api/polymarket';
 import { getOpinionMarkets, getPolyMarkets, config } from '../config/markets';
 
@@ -234,6 +234,62 @@ export function usePolling() {
     checkConnections();
   }, [apiKey]);
 
+  // Fetch all market volumes (for low volume indicator)
+  const fetchAllVolumes = useCallback(async () => {
+    // Get unique topicIds from config
+    const topicIds = new Set();
+    for (const market of config.markets) {
+      if (market.opinion?.topicId) {
+        topicIds.add(market.opinion.topicId);
+      }
+    }
+
+    // Fetch volumes in parallel
+    const promises = [...topicIds].map(topicId => fetchMarketVolume(topicId, apiKey));
+    await Promise.allSettled(promises);
+  }, [apiKey]);
+
+  // Fast initial load - load batches quickly in sequence
+  const fastInitialLoad = useCallback(async () => {
+    const outcomes = outcomesRef.current;
+    if (outcomes.length === 0) {
+      setLoading(false);
+      return;
+    }
+
+    // Fetch volumes in parallel with first batch
+    fetchAllVolumes();
+
+    // Load all batches quickly (500ms between each)
+    for (let i = 0; i < outcomes.length; i += marketsPerBatch) {
+      if (!isMountedRef.current) return;
+
+      const batch = outcomes.slice(i, i + marketsPerBatch);
+      outcomeIndexRef.current = i;
+
+      setPollingInfo({
+        current: i,
+        total: outcomes.length,
+        markets: batch.map(o => o.outcome)
+      });
+
+      await fetchBatch(batch);
+
+      // Clear loading after first batch
+      if (i === 0) {
+        setLoading(false);
+      }
+
+      // Small delay between batches during initial load (faster than normal polling)
+      if (i + marketsPerBatch < outcomes.length) {
+        await new Promise(r => setTimeout(r, 500));
+      }
+    }
+
+    // Reset index for normal polling
+    outcomeIndexRef.current = 0;
+  }, [fetchBatch, marketsPerBatch, fetchAllVolumes]);
+
   // Initial fetch and start polling
   useEffect(() => {
     isMountedRef.current = true;
@@ -245,23 +301,21 @@ export function usePolling() {
       total: outcomesRef.current.length
     }));
 
-    // Fetch all outcomes initially
-    fetchAllOutcomes();
-
-    // Start batch polling after initial load
-    const startPollingTimeout = setTimeout(() => {
-      intervalRef.current = setInterval(pollNextBatch, pollingInterval);
-    }, pollingInterval);
+    // Fast initial load, then start normal polling
+    fastInitialLoad().then(() => {
+      if (isMountedRef.current) {
+        intervalRef.current = setInterval(pollNextBatch, pollingInterval);
+      }
+    });
 
     // Cleanup
     return () => {
       isMountedRef.current = false;
-      clearTimeout(startPollingTimeout);
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
       }
     };
-  }, [fetchAllOutcomes, pollNextBatch, pollingInterval]);
+  }, [fastInitialLoad, pollNextBatch, pollingInterval]);
 
   // Manual refetch function (fetches all)
   const refetch = useCallback(() => {

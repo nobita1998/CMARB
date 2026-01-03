@@ -20,6 +20,14 @@ export default defineConfig({
         rewrite: (path) => path.replace(/^\/api\/opinion/, '/openapi'),
         agent: proxyAgent,
       },
+      // Polymarket Data API proxy (positions) - MUST be before /api/poly
+      '/api/poly-positions': {
+        target: 'https://data-api.polymarket.com',
+        changeOrigin: true,
+        secure: true,
+        rewrite: (path) => path.replace(/^\/api\/poly-positions/, '/positions'),
+        agent: proxyAgent,
+      },
       // Polymarket CLOB API proxy
       '/api/poly': {
         target: 'https://clob.polymarket.com',

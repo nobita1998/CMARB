@@ -5,6 +5,7 @@
   "rewrites": [
     { "source": "/api/opinion/:path*", "destination": "/api/opinion" },
     { "source": "/api/poly/:path*", "destination": "/api/poly" },
-    { "source": "/api/gamma/:path*", "destination": "/api/gamma" }
+    { "source": "/api/gamma/:path*", "destination": "/api/gamma" },
+    { "source": "/api/poly-positions", "destination": "/api/poly-positions" }
   ]
 }
